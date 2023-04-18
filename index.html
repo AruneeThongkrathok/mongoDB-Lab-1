@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Music Albums</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+      body {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+      }
+      table {
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        border: 1px solid black;
+        padding: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Music Albums</h1>
+    <table id="albumTable">
+      <thead>
+        <tr>
+          <th>Title</th>
+          <th>Artist</th>
+          <th>Year</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <h2>Add Album</h2>
+    <form>
+      <label for="title">Title:</label>
+      <input type="text" id="title" name="title" /><br />
+
+      <label for="artist">Artist:</label>
+      <input type="text" id="artist" name="artist" /><br />
+
+      <label for="year">Year:</label>
+      <input type="text" id="year" name="year" /><br />
+
+      <button type="button" id="addAlbum">Add Album</button>
+    </form>
+
+    <script>
+      const albumTableBody = document.querySelector("#albumTable tbody");
+      const addAlbumButton = document.querySelector("#addAlbum");
+
+      //Displaying all albums
+      axios
+        .get("/api/albums")
+        .then((response) => {
+          response.data.forEach((album) => {
+            const newRow = albumTableBody.insertRow();
+            newRow.innerHTML = `
+              <td>${album.title}</td>
+              <td>${album.artist}</td>
+              <td>${album.year}</td>
+              <td>
+                <button class="updateButton" data-id="${album._id}">Update</button>
+                <button class="deleteButton" data-id="${album._id}">Delete</button>
+                <button class="viewDetailsButton" data-id="${album._id}">View details</button>
+              </td>
+            `;
+            newRow.dataset.id = album._id;
+          });
+        })
+        .catch((error) => {
+          console.error(error);
+        });
+
+      // Add a new album
+      addAlbumButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        const title = document.querySelector("#title").value;
+        const artist = document.querySelector("#artist").value;
+        const year = document.querySelector("#year").value;
+
+        axios
+          .post("/api/albums", { title, artist, year })
+          .then((response) => {
+            const newRow = albumTableBody.insertRow();
+            newRow.innerHTML = `
+        <td>${response.data.title}</td>
+        <td>${response.data.artist}</td>
+        <td>${response.data.year}</td>
+        <td>
+          <button class="updateButton" data-id="${response.data._id}">Update</button>
+          <button class="deleteButton" data-id="${response.data._id}">Delete</button>
+          <button class="viewDetailsButton" data-id="${response.data._id}">View details</button>
+        </td>
+      `;
+            document.querySelector("form").reset();
+          })
+          .catch((error) => {
+            console.error(error);
+          });
+      });
+
+      // Delete button
+      albumTableBody.addEventListener("click", (event) => {
+        if (event.target.classList.contains("deleteButton")) {
+          const albumId = event.target.dataset.id;
+          const row = event.target.closest("tr");
+
+          // Show a confirmation dialog box
+          const isConfirmed = confirm(
+            "Are you sure you want to delete this album?"
+          );
+
+          if (isConfirmed) {
+            axios
+              .delete(`/api/albums/${albumId}`)
+              .then((response) => {
+                albumTableBody.removeChild(row);
+              })
+              .catch((error) => {
+                console.error(error);
+              });
+          }
+        }
+      });
+
+      // Update button
+      albumTableBody.addEventListener("click", (event) => {
+        if (event.target.classList.contains("updateButton")) {
+          const albumId = event.target.dataset.id;
+          const row = event.target.closest("tr");
+
+          const updateForm = document.createElement("form");
+          const titleInput = document.createElement("input");
+          const artistInput = document.createElement("input");
+          const yearInput = document.createElement("input");
+          const okButton = document.createElement("button");
+          const cancelButton = document.createElement("button");
+
+          titleInput.type = "text";
+          titleInput.value = row.cells[0].textContent;
+          artistInput.type = "text";
+          artistInput.value = row.cells[1].textContent;
+          yearInput.type = "text";
+          yearInput.value = row.cells[2].textContent;
+          okButton.type = "button";
+          okButton.textContent = "OK";
+          cancelButton.type = "button";
+          cancelButton.textContent = "Cancel";
+
+          updateForm.appendChild(titleInput);
+          updateForm.appendChild(artistInput);
+          updateForm.appendChild(yearInput);
+          updateForm.appendChild(okButton);
+          updateForm.appendChild(cancelButton);
+
+          albumTableBody.replaceChild(updateForm, row);
+
+          okButton.addEventListener("click", () => {
+            const title = titleInput.value;
+            const artist = artistInput.value;
+            const year = yearInput.value;
+
+            axios
+              .put(`/api/albums/${albumId}`, { title, artist, year })
+              .then((response) => {
+                const newRow = albumTableBody.insertRow(row.rowIndex);
+                newRow.innerHTML = `
+        <td>${response.data.title}</td>
+        <td>${response.data.artist}</td>
+        <td>${response.data.year}</td>
+        <td>
+          <button class="updateButton" data-id="${response.data._id}">Update</button>
+          <button class="deleteButton" data-id="${response.data._id}">Delete</button>
+          <button class="viewDetailsButton" data-id="${response.data._id}">View details</button>
+        </td>
+      `;
+                newRow.dataset.id = response.data._id;
+
+                albumTableBody.removeChild(updateForm);
+              })
+              .catch((error) => {
+                console.error(error);
+              });
+          });
+
+          cancelButton.addEventListener("click", () => {
+            albumTableBody.replaceChild(row, updateForm);
+          });
+        }
+      });
+
+      // View details button
+      albumTableBody.addEventListener("click", (event) => {
+        if (event.target.classList.contains("viewDetailsButton")) {
+          const albumId = event.target.dataset.id;
+
+          axios
+            .get(`/api/albums/${albumId}`)
+            .then((response) => {
+              const title = response.data[0].title;
+              const artist = response.data[0].artist;
+              const year = response.data[0].year;
+              alert(`Title: ${title}\nArtist: ${artist}\nYear: ${year}`);
+              console.log(title, artist, year);
+              console.log(albumId);
+              console.log(response);
+            })
+            .catch((error) => {
+              console.error(error);
+            });
+        }
+      });
+    </script>
+  </body>
+</html>
